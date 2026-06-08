@@ -26,4 +26,3 @@ test-qemu:
 	. ~/.espressif/tools/activate_idf_v6.0.1.sh && \
 	cd "${PROJECT_PATH}" && \
 	pytest "$(patsubst %.py,%,$(strip $(TEST_NAME))).py" -m qemu --target esp32s3 --embedded-services qemu,idf
-
