@@ -7,5 +7,12 @@
 			"path": "../esp32"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"cSpell.words": [
+			"espressif",
+			"pycache",
+			"pytest",
+			"sdkconfig"
+		]
+	}
 }
