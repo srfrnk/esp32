@@ -7,5 +7,9 @@
     }
   ],
   "idf.currentSetup": "/home/shahar/.espressif/v6.0.1/esp-idf",
-  "cmake.sourceDirectory": "/mnt/data/code/esp32/hello_world"
+  "cmake.sourceDirectory": "/mnt/data/code/esp32/hello_world",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none"
+  },
+  "cmake.ignoreCMakeListsMissing": true
 }

@@ -9,10 +9,16 @@
 	],
 	"settings": {
 		"cSpell.words": [
+			"aioble",
 			"espressif",
+			"esptool",
+			"mpremote",
+			"neopixel",
 			"pycache",
 			"pytest",
-			"sdkconfig"
+			"sdkconfig",
+			"Tuiss",
+			"uasyncio"
 		]
 	}
 }
