@@ -10,10 +10,7 @@ def flash():
     pin = machine.Pin(48, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
 
-    print(machine.freq())
-    print("Blinking NeoPixel LED every 0.1 seconds...")
-
-    for i in range(2):
+    for i in range(3):
         np[0] = (50, 0, 0)
         np.write()
         time.sleep(0.1)
@@ -23,6 +20,7 @@ def flash():
         np[0] = (0, 50, 0)
         np.write()
         time.sleep(0.1)
+
     np[0] = (0, 0, 0)
     np.write()
 
@@ -67,3 +65,4 @@ def take_snapshot(filename="snapshot.jpg"):
 
 print("Boot script running successfully!")
 take_snapshot()
+flash()

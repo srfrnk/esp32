@@ -1,4 +1,0 @@
-- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/v6.0.1/esp32s3/index.html)
-- [Board User Manual](./CBAA0046-052_UK.pdf)
-- ![Board Spec](./20260607_175958.jpg)
-- [MicroPython](https://micropython.org/)
