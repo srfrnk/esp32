@@ -1,3 +1,5 @@
+.PHONY: info download-firmware clean-flash repl flash run open close stubs
+
 info:
 	uvx esptool --port /dev/ttyUSB0 flash-id
 
