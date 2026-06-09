@@ -1,5 +1,5 @@
 import uasyncio as asyncio
-import aioble
+import aioble # type: ignore
 import bluetooth
 
 MAC_ADDR = "C6:0F:80:3B:C7:20"
@@ -49,10 +49,10 @@ async def send_blind_command(payload_bytes: bytes):
 
             print("Found characteristic! Transmitting handshakes...")
             await target_char.write(CMD_CONNECT)
-            await asyncio.sleep_ms(300)
+            await asyncio.sleep_ms(300) # type: ignore
 
             await target_char.write(CMD_INIT)
-            await asyncio.sleep_ms(300)
+            await asyncio.sleep_ms(300) # type: ignore
 
             print("Sending movement command...")
             await target_char.write(payload_bytes)

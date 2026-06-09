@@ -1,0 +1,27 @@
+# ESP32 MicroPython Agent Rules
+
+This file contains general instructions and context for AI agents working in this repository.
+Edit this file to guide how the agent should write code, communicate, and solve problems.
+
+## Context
+
+- **Project**: ESP32 MicroPython Blinds Control
+- **Hardware**: ESP32-S3
+- **Language**: MicroPython (Python 3.x subset)
+
+## Code Guidelines
+
+- **MicroPython Limitations**: Keep in mind memory constraints and MicroPython-specific library differences compared to standard CPython (e.g., use `uasyncio`, `ujson`, etc. if applicable, though modern MicroPython aliases many of these).
+- **Style**: Adhere to PEP 8 where possible.
+- **Dependencies**: The project seems to use `uv` for local tooling (`uv.lock`, `pyproject.toml`). Note that MicroPython packages might be managed differently on the device itself.
+- [Add any other specific coding patterns or conventions here, e.g. "Always add docstrings", "Use specific pin numbers"]
+
+## Agent Behavior
+
+- Always ask for confirmation before flashing firmware
+- Keep responses concise
+- Adopt changes across the full workflow: Makefile controls primary workflow commands, code can run on hardware independently.
+
+## Testing & Deployment
+
+- Test changes using local qemu.
