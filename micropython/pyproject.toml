@@ -7,3 +7,9 @@ requires-python = ">=3.14"
 dependencies = [
     "micropython-esp32-stubs>=1.28.0.post4",
 ]
+
+[dependency-groups]
+dev = [
+    "micropython-stubber>=1.28.3",
+]
+

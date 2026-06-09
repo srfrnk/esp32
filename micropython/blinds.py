@@ -19,47 +19,54 @@ def get_position_payload(user_percent: float) -> bytes:
     payload.append(group_value)
     return bytes(payload)
 
-async def send_blind_command(payload_bytes: bytes):
-    print(f"Connecting (Random Type) to {MAC_ADDR}...")
-    device = aioble.Device(aioble.ADDR_RANDOM, MAC_ADDR)
+async def send_blind_command(payload_bytes: bytes, max_retries: int = 5):
+    for attempt in range(max_retries):
+        print(f"Connecting (Random Type) to {MAC_ADDR}... (Attempt {attempt + 1}/{max_retries})")
+        device = aioble.Device(aioble.ADDR_RANDOM, MAC_ADDR)
 
-    try:
-        connection = await device.connect(timeout_ms=10000)
-        async with connection:
-            print("Connected! Discovering services...")
+        try:
+            connection = await device.connect(timeout_ms=10000)
+            async with connection:
+                print("Connected! Discovering services...")
 
-            # Resolve service discovery completely first to free up the BLE stack
-            services = []
-            async for service in connection.services():
-                services.append(service)
+                # Resolve service discovery completely first to free up the BLE stack
+                services = []
+                async for service in connection.services():
+                    services.append(service)
 
-            print(f"Discovered {len(services)} services. Searching for characteristic...")
-            target_char = None
-            for service in services:
-                async for char in service.characteristics():
-                    if char.uuid == TARGET_CHAR_UUID:
-                        target_char = char
+                print(f"Discovered {len(services)} services. Searching for characteristic...")
+                target_char = None
+                for service in services:
+                    async for char in service.characteristics():
+                        if char.uuid == TARGET_CHAR_UUID:
+                            target_char = char
+                            break
+                    if target_char:
                         break
-                if target_char:
-                    break
 
-            if not target_char:
-                print("Target characteristic not found on this device.")
+                if not target_char:
+                    print("Target characteristic not found on this device.")
+                    return
+
+                print("Found characteristic! Transmitting handshakes...")
+                await target_char.write(CMD_CONNECT)
+                await asyncio.sleep_ms(300) # type: ignore
+
+                await target_char.write(CMD_INIT)
+                await asyncio.sleep_ms(300) # type: ignore
+
+                print("Sending movement command...")
+                await target_char.write(payload_bytes)
+                print("Success!")
                 return
 
-            print("Found characteristic! Transmitting handshakes...")
-            await target_char.write(CMD_CONNECT)
-            await asyncio.sleep_ms(300) # type: ignore
-
-            await target_char.write(CMD_INIT)
-            await asyncio.sleep_ms(300) # type: ignore
-
-            print("Sending movement command...")
-            await target_char.write(payload_bytes)
-            print("Success!")
-
-    except Exception as e:
-        print(f"GATT Protocol Error: {type(e).__name__} - {e}")
+        except Exception as e:
+            print(f"GATT Protocol Error: {type(e).__name__} - {e}")
+            if attempt < max_retries - 1:
+                print("Waiting before retry...")
+                await asyncio.sleep_ms(2000) # type: ignore
+            else:
+                print("Failed after all retries.")
 
 async def main():
     await send_blind_command(get_position_payload(0))

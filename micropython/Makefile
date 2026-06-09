@@ -25,3 +25,7 @@ open:
 
 close:
 	uv tool run mpremote mount . run close.py
+
+stubs:
+	uv run stubber clone --add-stubs
+	uv run stubber firmware-stubs --serial /dev/ttyUSB0

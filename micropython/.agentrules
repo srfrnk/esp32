@@ -13,8 +13,7 @@ Edit this file to guide how the agent should write code, communicate, and solve 
 
 - **MicroPython Limitations**: Keep in mind memory constraints and MicroPython-specific library differences compared to standard CPython (e.g., use `uasyncio`, `ujson`, etc. if applicable, though modern MicroPython aliases many of these).
 - **Style**: Adhere to PEP 8 where possible.
-- **Dependencies**: The project seems to use `uv` for local tooling (`uv.lock`, `pyproject.toml`). Note that MicroPython packages might be managed differently on the device itself.
-- [Add any other specific coding patterns or conventions here, e.g. "Always add docstrings", "Use specific pin numbers"]
+- **Dependencies**: The project uses `uv` for local tooling and dependencies (`uv.lock`, `pyproject.toml`), MicroPython packages and dependencies are managed differently using `package.json`.
 
 ## Agent Behavior
 

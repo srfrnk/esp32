@@ -7,13 +7,17 @@
 	"settings": {
 		"cSpell.words": [
 			"aioble",
+			"deinit",
+			"docstrings",
 			"espressif",
 			"esptool",
 			"mpremote",
 			"neopixel",
 			"pycache",
+			"pyproject",
 			"pytest",
 			"sdkconfig",
+			"stubber",
 			"Tuiss",
 			"uasyncio"
 		]

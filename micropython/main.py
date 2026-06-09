@@ -1,8 +1,8 @@
 import time
-from camera import Camera, FrameSize, PixelFormat  # type: ignore
 
 import machine
 import neopixel
+from camera import Camera, FrameSize, PixelFormat
 
 
 def flash():
@@ -11,18 +11,18 @@ def flash():
     np = neopixel.NeoPixel(pin, 1)
 
     print(machine.freq())
-    print("Blinking NeoPixel LED every 0.5 seconds...")
+    print("Blinking NeoPixel LED every 0.1 seconds...")
 
     for i in range(2):
         np[0] = (50, 0, 0)
         np.write()
-        time.sleep(0.5)
+        time.sleep(0.1)
         np[0] = (0, 0, 50)
         np.write()
-        time.sleep(0.5)
+        time.sleep(0.1)
         np[0] = (0, 50, 0)
         np.write()
-        time.sleep(0.5)
+        time.sleep(0.1)
     np[0] = (0, 0, 0)
     np.write()
 
@@ -61,7 +61,7 @@ def take_snapshot(filename="snapshot.jpg"):
         try:
             if cam:
                 cam.deinit()
-        except:
+        except Exception:
             pass
 
 
