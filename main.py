@@ -1,14 +1,12 @@
-import time
-
 import machine
 import neopixel
 import uasyncio as asyncio
 
-from blinds_control import get_position_payload, send_blind_command
-from camera_control import capture_light
+from blinds_control import BlindsController
+from camera_control import CameraController
 
 
-def flash():
+async def flash():
     # Pin 48 is the built-in RGB NeoPixel (WS2812) on the ESP32-S3-CAM
     pin = machine.Pin(48, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
@@ -16,13 +14,13 @@ def flash():
     for i in range(3):
         np[0] = (50, 0, 0)
         np.write()
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         np[0] = (0, 0, 50)
         np.write()
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
         np[0] = (0, 50, 0)
         np.write()
-        time.sleep(0.1)
+        await asyncio.sleep(0.1)
 
     np[0] = (0, 0, 0)
     np.write()
@@ -32,12 +30,22 @@ print("Boot script running successfully!")
 
 
 async def main():
-    for i in range(50):
-        light_level = capture_light()
-        print(f"Measured light level: {light_level}")
-        await send_blind_command(get_position_payload(0))
-        flash()
-        time.sleep(10)
+    async with CameraController() as cam_controller:
+        async with BlindsController() as blinds_controller:
+            while True:
+                light_level = cam_controller.measure_light()
+                if light_level is not None:
+                    print(f"Measured light level: {light_level}")
+                    # light_level is 0 (dark) to 255 (bright)
+                    # user_percent: 0 is open, 100 is closed
+                    # The darker it is, the more open it should be
+                    user_percent = max(0, min(100, (light_level / 255.0) * 100.0))
+                    await blinds_controller.set_position(user_percent)
+                else:
+                    print("Failed to measure light level.")
+
+                await flash()
+                await asyncio.sleep(10)
 
 
 if __name__ == "__main__":

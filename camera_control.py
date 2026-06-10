@@ -1,87 +1,58 @@
-import time
-
+import uasyncio as asyncio
 from camera import Camera, FrameSize, PixelFormat
 
 
-def take_snapshot(filename="snapshot.jpg"):
-    cam = None
-    try:
-        # Initialize the camera. The pins are already pre-configured in this firmware.
-        cam = Camera(
-            frame_size=FrameSize.UXGA, pixel_format=PixelFormat.JPEG, init=False
+class CameraController:
+    def __init__(self):
+        self._cam = None
+
+    async def __aenter__(self):
+        # Initialize the camera. The `Camera` constructor automatically initializes the hardware.
+        self._cam = Camera(
+            frame_size=FrameSize.QQVGA, pixel_format=PixelFormat.GRAYSCALE
         )
-        cam.init()
-
-        # Allow the camera time to adjust exposure and white balance
-        time.sleep(2)
-
-        # Capture the image
-        img = cam.capture()
-
-        if img:
-            with open(filename, "wb") as f:
-                # Write in chunks to prevent mpremote mount crashes over serial
-                chunk_size = 4096
-                for i in range(0, len(img), chunk_size):
-                    f.write(img[i : i + chunk_size])
-            print(f"Snapshot saved as {filename}")
-            return True
-        else:
-            print("Failed to capture image.")
-            return False
-
-    except ImportError:
-        print("Camera module not available in this firmware.")
-        return False
-    except Exception as e:
-        print(f"Error taking snapshot: {e}")
-        return False
-    finally:
-        try:
-            if cam:
-                cam.deinit()
-        except Exception:
-            pass
-
-
-def capture_light():
-    cam = None
-    try:
-        # Initialize the camera. Use a small frame size and grayscale for efficient light measurement.
-        cam = Camera(
-            frame_size=FrameSize.QQVGA, pixel_format=PixelFormat.GRAYSCALE, init=False
-        )
-        cam.init()
 
         # The camera sensor needs frames to be processed to adjust auto-exposure and white balance.
         # We capture and discard a few initial frames to let the exposure stabilize.
         for _ in range(10):
-            cam.capture()
-            time.sleep(0.1)
+            self._cam.capture()
+            await asyncio.sleep(0.1)
 
-        # Capture the final image for measurement
-        img = cam.capture()
+        return self
 
-        if img:
-            # The camera returns a memoryview which may iterate as signed integers.
-            # Casting to bytes ensures we get unsigned values (0-255) for accurate brightness.
-            img_bytes = bytes(img)
-            # Calculate average pixel value for the light level
-            light_level = sum(img_bytes) / len(img_bytes)
-            return light_level
-        else:
-            print("Failed to capture image.")
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._cam is not None:
+            try:
+                self._cam.deinit()
+            except Exception:
+                pass
+            self._cam = None
+
+    def measure_light(self):
+        if self._cam is None:
+            print(
+                "Camera is not initialized. Make sure to use the 'with' context manager."
+            )
             return None
 
-    except ImportError:
-        print("Camera module not available in this firmware.")
-        return None
-    except Exception as e:
-        print(f"Error capturing light level: {e}")
-        return None
-    finally:
         try:
-            if cam:
-                cam.deinit()
-        except Exception:
-            pass
+            # Flush one frame to ensure we get the most recent reading, not a stale buffered one
+            self._cam.capture()
+
+            # Capture the final image for measurement
+            img = self._cam.capture()
+
+            if img:
+                # The camera returns a memoryview which may iterate as signed integers.
+                # Casting to bytes ensures we get unsigned values (0-255) for accurate brightness.
+                img_bytes = bytes(img)
+                # Calculate average pixel value for the light level
+                light_level = sum(img_bytes) / len(img_bytes)
+                return light_level
+            else:
+                print("Failed to capture image.")
+                return None
+
+        except Exception as e:
+            print(f"Error capturing light level: {e}")
+            return None
