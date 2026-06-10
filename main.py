@@ -2,8 +2,11 @@ import time
 
 import machine
 import neopixel
+import uasyncio as asyncio
 
-from camera_control import take_snapshot
+from blinds_control import get_position_payload, send_blind_command
+from camera_control import capture_light
+
 
 def flash():
     # Pin 48 is the built-in RGB NeoPixel (WS2812) on the ESP32-S3-CAM
@@ -26,6 +29,16 @@ def flash():
 
 
 print("Boot script running successfully!")
-take_snapshot()
-()
-flash()
+
+
+async def main():
+    for i in range(50):
+        light_level = capture_light()
+        print(f"Measured light level: {light_level}")
+        await send_blind_command(get_position_payload(0))
+        flash()
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

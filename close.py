@@ -1,5 +1,5 @@
 import uasyncio as asyncio
-from blinds import send_blind_command, get_position_payload
+from blinds_control import send_blind_command, get_position_payload
 
 async def main():
     print("Sending movement command (Close)...")

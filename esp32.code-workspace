@@ -16,10 +16,12 @@
 			"pycache",
 			"pyproject",
 			"pytest",
+			"QQVGA",
 			"sdkconfig",
 			"stubber",
 			"Tuiss",
-			"uasyncio"
+			"uasyncio",
+			"UXGA"
 		]
 	}
 }
