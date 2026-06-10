@@ -46,3 +46,9 @@ class Camera:
     def init(self) -> bool: ...
     def deinit(self) -> bool: ...
     def capture(self) -> bytes: ...
+    
+    whitebal: int
+    exposure_ctrl: int
+    gain_ctrl: int
+    aec_value: int
+    agc_gain: int

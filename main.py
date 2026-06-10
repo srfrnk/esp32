@@ -11,14 +11,14 @@ async def flash():
     pin = machine.Pin(48, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
 
-    for i in range(3):
-        np[0] = (50, 0, 0)
+    for i in range(2):
+        np[0] = (1, 0, 0)
         np.write()
         await asyncio.sleep(0.1)
-        np[0] = (0, 0, 50)
+        np[0] = (0, 0, 1)
         np.write()
         await asyncio.sleep(0.1)
-        np[0] = (0, 50, 0)
+        np[0] = (0, 1, 0)
         np.write()
         await asyncio.sleep(0.1)
 
@@ -30,6 +30,9 @@ print("Boot script running successfully!")
 
 
 async def main():
+    pin = machine.Pin(48, machine.Pin.OUT)
+    np = neopixel.NeoPixel(pin, 1)
+
     async with CameraController() as cam_controller:
         async with BlindsController() as blinds_controller:
             while True:
@@ -41,10 +44,15 @@ async def main():
                     # The darker it is, the more open it should be
                     user_percent = max(0, min(100, (light_level / 255.0) * 100.0))
                     await blinds_controller.set_position(user_percent)
+                    np[0] = (0, 1, 0)
+                    np.write()
                 else:
                     print("Failed to measure light level.")
-
-                await flash()
+                    np[0] = (1, 0, 0)
+                    np.write()
+                await asyncio.sleep(0.1)
+                np[0] = (0, 0, 0)
+                np.write()
                 await asyncio.sleep(10)
 
 

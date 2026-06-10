@@ -20,6 +20,7 @@ Edit this file to guide how the agent should write code, communicate, and solve 
 - Always ask for confirmation before flashing firmware
 - Keep responses concise
 - Adopt changes across the full workflow: Makefile controls primary workflow commands, code can run on hardware independently.
+- Clean up any temporary or one-off scripts created in the project directory immediately after use, or create them in the designated scratch directory instead.
 
 ## Testing & Deployment
 

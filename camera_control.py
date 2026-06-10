@@ -12,9 +12,23 @@ class CameraController:
             frame_size=FrameSize.QQVGA, pixel_format=PixelFormat.GRAYSCALE
         )
 
-        # The camera sensor needs frames to be processed to adjust auto-exposure and white balance.
-        # We capture and discard a few initial frames to let the exposure stabilize.
-        for _ in range(10):
+        # Disable auto white balancing which can skew absolute brightness readings
+        self._cam.whitebal = 0
+        
+        # Disable Auto Exposure Control (AEC) and Auto Gain Control (AGC)
+        # This stops the camera from boosting brightness in the dark or lowering it in the light,
+        # giving you absolute linear light readings.
+        self._cam.exposure_ctrl = 0
+        self._cam.gain_ctrl = 0
+        
+        # Set fixed manual values (You may need to tune these for your specific room!)
+        # AEC value controls exposure time (higher = brighter image)
+        self._cam.aec_value = 350
+        # AGC gain controls sensor sensitivity (higher = brighter but noisier)
+        self._cam.agc_gain = 0
+
+        # We capture and discard a few initial frames to flush the buffer
+        for _ in range(5):
             self._cam.capture()
             await asyncio.sleep(0.1)
 
