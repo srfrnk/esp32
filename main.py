@@ -35,6 +35,7 @@ async def main():
 
     async with CameraController() as cam_controller:
         async with BlindsController() as blinds_controller:
+            last_user_percent = None
             while True:
                 light_level = cam_controller.measure_light()
                 if light_level is not None:
@@ -43,9 +44,14 @@ async def main():
                     # user_percent: 0 is open, 100 is closed
                     # The darker it is, the more open it should be
                     user_percent = max(0, min(100, (light_level / 255.0) * 100.0))
-                    await blinds_controller.set_position(user_percent)
-                    np[0] = (0, 1, 0)
-                    np.write()
+                    if last_user_percent is None or abs(user_percent - last_user_percent) > 10.0:
+                        await blinds_controller.set_position(user_percent)
+                        last_user_percent = user_percent
+                        np[0] = (0, 1, 0)
+                        np.write()
+                    else:
+                        np[0] = (0, 0, 1)
+                        np.write()
                 else:
                     print("Failed to measure light level.")
                     np[0] = (1, 0, 0)

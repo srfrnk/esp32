@@ -1,4 +1,5 @@
-.PHONY: info download-firmware clean-flash repl flash run open close stubs
+.PHONY: info download-firmware clean-flash repl flash run open close stubs monitor
+
 
 info:
 	uvx esptool --port /dev/ttyUSB0 flash-id
@@ -11,9 +12,6 @@ clean-flash:
 	uvx esptool --chip esp32s3 --port /dev/ttyUSB0 write-flash -z 0 firmware.bin
 	sleep 5
 	uv tool run mpremote mip install package.json
-
-repl:
-	uv tool run mpremote repl
 
 flash:
 	uv tool run mpremote cp *.py :
@@ -31,3 +29,6 @@ close:
 stubs:
 	uv run stubber clone --add-stubs
 	uv run stubber firmware-stubs --serial /dev/ttyUSB0
+
+monitor:
+	uv tool run mpremote repl
