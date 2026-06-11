@@ -7,6 +7,10 @@ info:
 download-firmware:
 	curl -L -o firmware.bin https://micropython.org/resources/firmware/ESP32_GENERIC_S3-SPIRAM_OCT-20260406-v1.28.0.bin
 
+stubs:
+	uv run stubber clone --add-stubs
+	uv run stubber firmware-stubs --serial /dev/ttyUSB0
+
 clean-flash:
 	uvx esptool --chip esp32s3 --port /dev/ttyUSB0 erase-flash
 	uvx esptool --chip esp32s3 --port /dev/ttyUSB0 write-flash -z 0 firmware.bin
@@ -20,15 +24,9 @@ flash:
 run:
 	uv tool run mpremote mount . run main.py
 
-open:
-	uv tool run mpremote mount . run open.py
 
-close:
-	uv tool run mpremote mount . run close.py
-
-stubs:
-	uv run stubber clone --add-stubs
-	uv run stubber firmware-stubs --serial /dev/ttyUSB0
-
-monitor:
+repl:
 	uv tool run mpremote repl
+
+resume:
+	uv tool run mpremote resume

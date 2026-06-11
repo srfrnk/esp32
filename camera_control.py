@@ -23,7 +23,7 @@ class CameraController:
         
         # Set fixed manual values (You may need to tune these for your specific room!)
         # AEC value controls exposure time (higher = brighter image)
-        self._cam.aec_value = 350
+        self._cam.aec_value = 55
         # AGC gain controls sensor sensitivity (higher = brighter but noisier)
         self._cam.agc_gain = 0
 
