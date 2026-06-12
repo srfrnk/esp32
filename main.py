@@ -1,4 +1,6 @@
 import json
+import time
+import ntptime
 
 import machine
 import neopixel
@@ -60,23 +62,120 @@ def print_histogram_diagnostics(histogram, min_light, max_light):
     downsampled = [0.0] * bins
     for i in range(256):
         downsampled[i // bin_size] += histogram[i]
-    
+
     max_val = max(downsampled) if max(downsampled) > 0 else 1.0
     spark_chars = " .:-=+*#%@"
     sparkline = ""
     for val in downsampled:
         idx = int((val / max_val) * (len(spark_chars) - 1))
         sparkline += spark_chars[idx]
-        
-    print(f"--- Diagnostics ---")
+
+    print("--- Diagnostics ---")
     print(f"Min: {min_light} | Max: {max_light}")
     print(f"Histogram: [{sparkline}]")
-    print(f"-------------------")
+    print("-------------------")
+
+
+async def sync_time_task():
+    while True:
+        try:
+            print("Synchronizing time with NTP...")
+            ntptime.settime()  # Sets RTC to UTC
+            
+            utc_seconds = time.time()
+            t = time.localtime(utc_seconds)
+            year, month, day, hour = t[0], t[1], t[2], t[3]
+            
+            # UK DST is from the last Sunday of March to the last Sunday of October
+            is_bst = False
+            if 3 < month < 10:
+                is_bst = True
+            elif month == 3 or month == 10:
+                last_sunday = 31
+                for d in range(31, 24, -1):
+                    if time.localtime(time.mktime((year, month, d, 0, 0, 0, 0, 0)))[6] == 6:
+                        last_sunday = d
+                        break
+                if month == 3 and (day > last_sunday or (day == last_sunday and hour >= 1)):
+                    is_bst = True
+                elif month == 10 and (day < last_sunday or (day == last_sunday and hour < 1)):
+                    is_bst = True
+            
+            offset = 3600 if is_bst else 0
+            local_seconds = utc_seconds + offset
+            lt = time.localtime(local_seconds)
+            
+            # Update RTC to local time: (year, month, day, weekday, hours, minutes, seconds, subseconds)
+            machine.RTC().datetime((lt[0], lt[1], lt[2], lt[6], lt[3], lt[4], lt[5], 0))
+            
+            tz_name = "BST" if is_bst else "GMT"
+            print(f"Time synchronized ({tz_name}): {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
+        except Exception as e:
+            print(f"Failed to synchronize time: {e}")
+        # Sync every 1 hour
+        await asyncio.sleep(3600)
+
+
+async def http_server_handler(reader, writer):
+    try:
+        request_line = await reader.readline()
+        if not request_line:
+            return
+        
+        req = request_line.decode().split()
+        if len(req) < 2:
+            return
+            
+        path = req[1]
+        
+        # Read the rest of the headers
+        while True:
+            line = await reader.readline()
+            if not line or line == b'\r\n':
+                break
+                
+        if path == "/":
+            path = "/webrepl.html"
+            
+        # Prevent directory traversal
+        if ".." in path:
+            path = "/webrepl.html"
+            
+        try:
+            with open(path[1:], "rb") as f:
+                writer.write(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+                while True:
+                    chunk = f.read(1024)
+                    if not chunk:
+                        break
+                    writer.write(chunk)
+                    await writer.drain()
+        except OSError:
+            writer.write(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n404 File Not Found")
+            await writer.drain()
+            
+    except Exception as e:
+        print(f"HTTP Server error: {e}")
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 async def main():
     pin = machine.Pin(48, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
+
+    print("Starting HTTP Server on port 80...")
+    try:
+        await asyncio.start_server(http_server_handler, "0.0.0.0", 80)
+    except Exception as e:
+        print(f"Failed to start HTTP server: {e}")
+
+    # Start the background time synchronization task
+    asyncio.create_task(sync_time_task())
 
     histogram = load_calibration()
     save_calibration(histogram)  # Save immediately so the file exists
@@ -121,23 +220,37 @@ async def main():
                         save_calibration(histogram)
                         iteration_count = 0
                         print(f"Saved calibration: min={min_light}, max={max_light}")
-                    
+
                     print_histogram_diagnostics(histogram, min_light, max_light)
 
-                    # user_percent: 0 is open, 100 is closed
-                    # The darker it is, the more open it should be
-                    if max_light > min_light:
-                        # Enforce a minimum range so small fluctuations don't cause huge blind movements
-                        range_light = max(50, max_light - min_light)
-                        user_percent = max(
-                            0,
-                            min(100, ((light_level - min_light) / range_light) * 100.0),
-                        )
+                    # TARGET_LIGHT is the desired brightness in the room.
+                    # We use an incremental controller to seek this target, which is robust
+                    # against ambient light changes (like room lights being turned on).
+                    TARGET_LIGHT = 90.0
+                    DEADBAND = 4.0  # Allowable +/- drift before moving blinds
+
+                    if last_user_percent is None:
+                        # On first run, we just pick a middle ground or use the min/max logic
+                        user_percent = 50.0
                     else:
-                        user_percent = max(0, min(100, (light_level / 255.0) * 100.0))
+                        if light_level > TARGET_LIGHT + DEADBAND:
+                            # Too bright -> close blinds
+                            error = light_level - TARGET_LIGHT
+                            # Proportional step: bigger error = bigger step, max 15% per iteration
+                            step = min(15.0, max(2.0, error * 0.5))
+                            user_percent = min(100.0, last_user_percent + step)
+                        elif light_level < TARGET_LIGHT - DEADBAND:
+                            # Too dark -> open blinds
+                            error = TARGET_LIGHT - light_level
+                            step = min(15.0, max(2.0, error * 0.5))
+                            user_percent = max(0.0, last_user_percent - step)
+                        else:
+                            # Within target range, don't move
+                            user_percent = last_user_percent
+
                     if (
                         last_user_percent is None
-                        or abs(user_percent - last_user_percent) > 10.0
+                        or abs(user_percent - last_user_percent) >= 2.0
                     ):
                         await blinds_controller.set_position(user_percent)
                         last_user_percent = user_percent

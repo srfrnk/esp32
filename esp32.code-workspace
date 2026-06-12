@@ -7,10 +7,12 @@
 	"settings": {
 		"cSpell.words": [
 			"aioble",
+			"DEADBAND",
 			"deinit",
 			"docstrings",
 			"espressif",
 			"esptool",
+			"FRUK",
 			"mpremote",
 			"neopixel",
 			"pycache",
@@ -18,6 +20,7 @@
 			"pytest",
 			"QQVGA",
 			"sdkconfig",
+			"sparkline",
 			"stubber",
 			"Tuiss",
 			"uasyncio",

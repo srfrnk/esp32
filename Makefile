@@ -19,6 +19,9 @@ clean-flash:
 
 flash:
 	uv tool run mpremote cp *.py :
+	uv tool run mpremote cp *.json :
+	uv tool run mpremote cp *.html :
+	uv tool run mpremote cp *.js :
 	uv tool run mpremote reset
 
 run:

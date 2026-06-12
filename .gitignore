@@ -4,4 +4,6 @@ __pycache__/
 .ruff_cache/
 repos/
 snapshot.jpg
-ble_secrets.json
+*secrets.json
+webrepl_cfg.py
+calibration.json
