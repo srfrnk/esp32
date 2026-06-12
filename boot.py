@@ -1,7 +1,6 @@
 import time
 import network
 import json
-import webrepl
 
 def connect_wifi():
     try:
@@ -62,8 +61,6 @@ def start_access_point():
 # 1. Connect to the guest network for internet access
 connect_wifi()
 
-# 2. Start the Access Point for direct WebREPL access
+# 2. Start the Access Point for direct Dashboard access
 start_access_point()
 
-print("Starting WebREPL...")
-webrepl.start()

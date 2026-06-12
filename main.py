@@ -8,6 +8,16 @@ import uasyncio as asyncio
 
 from blinds_control import BlindsController
 from camera_control import CameraController
+from web_server.server import start_server
+
+diagnostics_data = {
+    "light_level": None,
+    "min_light": None,
+    "max_light": None,
+    "user_percent": None,
+    "target_light": 90.0,
+    "histogram_sparkline": ""
+}
 
 
 def load_calibration():
@@ -56,7 +66,7 @@ async def flash():
 print("Boot script running successfully!")
 
 
-def print_histogram_diagnostics(histogram, min_light, max_light):
+def get_histogram_sparkline(histogram):
     bins = 32
     bin_size = 256 // bins
     downsampled = [0.0] * bins
@@ -70,10 +80,7 @@ def print_histogram_diagnostics(histogram, min_light, max_light):
         idx = int((val / max_val) * (len(spark_chars) - 1))
         sparkline += spark_chars[idx]
 
-    print("--- Diagnostics ---")
-    print(f"Min: {min_light} | Max: {max_light}")
-    print(f"Histogram: [{sparkline}]")
-    print("-------------------")
+    return sparkline
 
 
 async def sync_time_task():
@@ -116,61 +123,12 @@ async def sync_time_task():
         await asyncio.sleep(3600)
 
 
-async def http_server_handler(reader, writer):
-    try:
-        request_line = await reader.readline()
-        if not request_line:
-            return
-        
-        req = request_line.decode().split()
-        if len(req) < 2:
-            return
-            
-        path = req[1]
-        
-        # Read the rest of the headers
-        while True:
-            line = await reader.readline()
-            if not line or line == b'\r\n':
-                break
-                
-        if path == "/":
-            path = "/webrepl.html"
-            
-        # Prevent directory traversal
-        if ".." in path:
-            path = "/webrepl.html"
-            
-        try:
-            with open(path[1:], "rb") as f:
-                writer.write(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
-                while True:
-                    chunk = f.read(1024)
-                    if not chunk:
-                        break
-                    writer.write(chunk)
-                    await writer.drain()
-        except OSError:
-            writer.write(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n404 File Not Found")
-            await writer.drain()
-            
-    except Exception as e:
-        print(f"HTTP Server error: {e}")
-    finally:
-        try:
-            writer.close()
-            await writer.wait_closed()
-        except Exception:
-            pass
-
-
 async def main():
     pin = machine.Pin(48, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
 
-    print("Starting HTTP Server on port 80...")
     try:
-        await asyncio.start_server(http_server_handler, "0.0.0.0", 80)
+        await start_server(diagnostics_data, "0.0.0.0", 80)
     except Exception as e:
         print(f"Failed to start HTTP server: {e}")
 
@@ -221,7 +179,16 @@ async def main():
                         iteration_count = 0
                         print(f"Saved calibration: min={min_light}, max={max_light}")
 
-                    print_histogram_diagnostics(histogram, min_light, max_light)
+                    sparkline = get_histogram_sparkline(histogram)
+                    print("--- Diagnostics ---")
+                    print(f"Min: {min_light} | Max: {max_light}")
+                    print(f"Histogram: [{sparkline}]")
+                    print("-------------------")
+                    
+                    diagnostics_data["min_light"] = min_light
+                    diagnostics_data["max_light"] = max_light
+                    diagnostics_data["histogram_sparkline"] = sparkline
+                    diagnostics_data["light_level"] = light_level
 
                     # TARGET_LIGHT is the desired brightness in the room.
                     # We use an incremental controller to seek this target, which is robust
@@ -247,6 +214,9 @@ async def main():
                         else:
                             # Within target range, don't move
                             user_percent = last_user_percent
+
+                    diagnostics_data["user_percent"] = user_percent
+                    diagnostics_data["target_light"] = TARGET_LIGHT
 
                     if (
                         last_user_percent is None
