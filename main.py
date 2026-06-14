@@ -9,14 +9,17 @@ import uasyncio as asyncio
 from blinds_control import BlindsController
 from camera_control import CameraController
 from web_server.server import start_server
+from temperature_sensor import TemperatureSensor
+from config import APP_CONFIG
 
 diagnostics_data = {
     "light_level": None,
     "min_light": None,
     "max_light": None,
     "user_percent": None,
-    "target_light": 90.0,
-    "histogram_sparkline": ""
+    "target_light": APP_CONFIG.light_control.target,
+    "histogram_sparkline": "",
+    "temperature": None
 }
 
 
@@ -44,8 +47,8 @@ def save_calibration(histogram):
 
 
 async def flash():
-    # Pin 48 is the built-in RGB NeoPixel (WS2812) on the ESP32-S3-CAM
-    pin = machine.Pin(48, machine.Pin.OUT)
+    # Pin is the built-in RGB NeoPixel
+    pin = machine.Pin(APP_CONFIG.hardware.neopixel_pin, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
 
     for i in range(2):
@@ -84,56 +87,70 @@ def get_histogram_sparkline(histogram):
 
 
 async def sync_time_task():
+    # Set a 10-second timeout for NTP to prevent hanging
+    if hasattr(ntptime, "timeout"):
+        ntptime.timeout = 10
+        
     while True:
-        try:
-            print("Synchronizing time with NTP...")
-            ntptime.settime()  # Sets RTC to UTC
-            
-            utc_seconds = time.time()
-            t = time.localtime(utc_seconds)
-            year, month, day, hour = t[0], t[1], t[2], t[3]
-            
-            # UK DST is from the last Sunday of March to the last Sunday of October
-            is_bst = False
-            if 3 < month < 10:
-                is_bst = True
-            elif month == 3 or month == 10:
-                last_sunday = 31
-                for d in range(31, 24, -1):
-                    if time.localtime(time.mktime((year, month, d, 0, 0, 0, 0, 0)))[6] == 6:
-                        last_sunday = d
-                        break
-                if month == 3 and (day > last_sunday or (day == last_sunday and hour >= 1)):
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"Synchronizing time with NTP... (Attempt {attempt + 1}/{max_retries})")
+                ntptime.settime()  # Sets RTC to UTC
+                
+                utc_seconds = time.time()
+                t = time.localtime(utc_seconds)
+                year, month, day, hour = t[0], t[1], t[2], t[3]
+                
+                # UK DST is from the last Sunday of March to the last Sunday of October
+                is_bst = False
+                if 3 < month < 10:
                     is_bst = True
-                elif month == 10 and (day < last_sunday or (day == last_sunday and hour < 1)):
-                    is_bst = True
-            
-            offset = 3600 if is_bst else 0
-            local_seconds = utc_seconds + offset
-            lt = time.localtime(local_seconds)
-            
-            # Update RTC to local time: (year, month, day, weekday, hours, minutes, seconds, subseconds)
-            machine.RTC().datetime((lt[0], lt[1], lt[2], lt[6], lt[3], lt[4], lt[5], 0))
-            
-            tz_name = "BST" if is_bst else "GMT"
-            print(f"Time synchronized ({tz_name}): {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
-        except Exception as e:
-            print(f"Failed to synchronize time: {e}")
-        # Sync every 1 hour
-        await asyncio.sleep(3600)
+                elif month == 3 or month == 10:
+                    last_sunday = 31
+                    for d in range(31, 24, -1):
+                        if time.localtime(time.mktime((year, month, d, 0, 0, 0, 0, 0)))[6] == 6:
+                            last_sunday = d
+                            break
+                    if month == 3 and (day > last_sunday or (day == last_sunday and hour >= 1)):
+                        is_bst = True
+                    elif month == 10 and (day < last_sunday or (day == last_sunday and hour < 1)):
+                        is_bst = True
+                
+                offset = 3600 if is_bst else 0
+                local_seconds = utc_seconds + offset
+                lt = time.localtime(local_seconds)
+                
+                # Update RTC to local time: (year, month, day, weekday, hours, minutes, seconds, subseconds)
+                machine.RTC().datetime((lt[0], lt[1], lt[2], lt[6], lt[3], lt[4], lt[5], 0))
+                
+                tz_name = "BST" if is_bst else "GMT"
+                print(f"Time synchronized ({tz_name}): {lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} {lt[3]:02d}:{lt[4]:02d}:{lt[5]:02d}")
+                break  # Success! Break out of the retry loop.
+            except Exception as e:
+                print(f"Failed to synchronize time: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(5)  # Wait 5 seconds before retrying
+                    
+        # Sync at configured interval
+        await asyncio.sleep(APP_CONFIG.timing.ntp_sync_interval)
 
 
 async def main():
-    pin = machine.Pin(48, machine.Pin.OUT)
+    pin = machine.Pin(APP_CONFIG.hardware.neopixel_pin, machine.Pin.OUT)
     np = neopixel.NeoPixel(pin, 1)
 
     try:
-        await start_server(diagnostics_data, "0.0.0.0", 80)
+        await start_server(diagnostics_data, APP_CONFIG.server.ip, APP_CONFIG.server.port)
     except Exception as e:
         print(f"Failed to start HTTP server: {e}")
 
     # Start the background time synchronization task
     asyncio.create_task(sync_time_task())
+
+    # Initialize temperature sensor and start its background calibration task
+    temp_sensor = TemperatureSensor()
+    asyncio.create_task(temp_sensor.calibration_task())
 
     histogram = load_calibration()
     save_calibration(histogram)  # Save immediately so the file exists
@@ -179,9 +196,15 @@ async def main():
                         iteration_count = 0
                         print(f"Saved calibration: min={min_light}, max={max_light}")
 
+                    estimated_temp = temp_sensor.get_estimated_temperature()
+                    
                     sparkline = get_histogram_sparkline(histogram)
                     print("--- Diagnostics ---")
                     print(f"Min: {min_light} | Max: {max_light}")
+                    if estimated_temp is not None:
+                        print(f"Temperature: {estimated_temp:.1f} °C")
+                    else:
+                        print("Temperature: Not Available")
                     print(f"Histogram: [{sparkline}]")
                     print("-------------------")
                     
@@ -189,16 +212,17 @@ async def main():
                     diagnostics_data["max_light"] = max_light
                     diagnostics_data["histogram_sparkline"] = sparkline
                     diagnostics_data["light_level"] = light_level
+                    diagnostics_data["temperature"] = estimated_temp
 
                     # TARGET_LIGHT is the desired brightness in the room.
                     # We use an incremental controller to seek this target, which is robust
                     # against ambient light changes (like room lights being turned on).
-                    TARGET_LIGHT = 90.0
-                    DEADBAND = 4.0  # Allowable +/- drift before moving blinds
+                    TARGET_LIGHT = APP_CONFIG.light_control.target
+                    DEADBAND = APP_CONFIG.light_control.deadband  # Allowable +/- drift before moving blinds
 
                     if last_user_percent is None:
                         # On first run, we just pick a middle ground or use the min/max logic
-                        user_percent = 50.0
+                        user_percent = APP_CONFIG.light_control.initial_user_percent
                     else:
                         if light_level > TARGET_LIGHT + DEADBAND:
                             # Too bright -> close blinds
@@ -236,7 +260,7 @@ async def main():
                 await asyncio.sleep(0.1)
                 np[0] = (0, 0, 0)
                 np.write()
-                await asyncio.sleep(10)
+                await asyncio.sleep(APP_CONFIG.timing.loop_sleep_time)
 
 
 if __name__ == "__main__":

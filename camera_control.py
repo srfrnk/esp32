@@ -1,5 +1,6 @@
 import uasyncio as asyncio
 from camera import Camera, FrameSize, PixelFormat
+from config import APP_CONFIG
 
 
 class CameraController:
@@ -23,9 +24,9 @@ class CameraController:
         
         # Set fixed manual values (You may need to tune these for your specific room!)
         # AEC value controls exposure time (higher = brighter image)
-        self._cam.aec_value = 55
+        self._cam.aec_value = APP_CONFIG.camera.aec_value
         # AGC gain controls sensor sensitivity (higher = brighter but noisier)
-        self._cam.agc_gain = 0
+        self._cam.agc_gain = APP_CONFIG.camera.agc_gain
 
         # We capture and discard a few initial frames to flush the buffer
         for _ in range(5):

@@ -1,0 +1,26 @@
+{
+  "light_control": {
+    "target": 90.0,
+    "deadband": 4.0,
+    "initial_user_percent": 50.0
+  },
+  "server": {
+    "ip": "0.0.0.0",
+    "port": 80
+  },
+  "timing": {
+    "ntp_sync_interval": 3600,
+    "loop_sleep_time": 10,
+    "temperature_recalibration_interval": 1800
+  },
+  "hardware": {
+    "neopixel_pin": 48
+  },
+  "camera": {
+    "aec_value": 55,
+    "agc_gain": 0
+  },
+  "blinds": {
+    "mac_addr": "C6:0F:80:3B:C7:20"
+  }
+}

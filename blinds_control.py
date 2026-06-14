@@ -1,11 +1,12 @@
 import aioble  # type: ignore
 import bluetooth
 import uasyncio as asyncio
+from config import APP_CONFIG
 
 
 class BlindsController:
-    def __init__(self, mac_addr="C6:0F:80:3B:C7:20"):
-        self.mac_addr = mac_addr
+    def __init__(self, mac_addr=None):
+        self.mac_addr = mac_addr or APP_CONFIG.blinds.mac_addr
         self.target_char_uuid = bluetooth.UUID("00010405-0405-0607-0809-0a0b0c0d1910")
         self.cmd_connect = bytes.fromhex("ff03030303787878787878")
         self.cmd_init = bytes.fromhex("ff78ea41d10301")
