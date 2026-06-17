@@ -3,7 +3,10 @@ import uasyncio as asyncio
 
 async def http_server_handler(reader, writer, diagnostics_data):
     try:
-        request_line = await reader.readline()
+        try:
+            request_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
+        except (asyncio.TimeoutError, TimeoutError):
+            return
         if not request_line:
             return
         

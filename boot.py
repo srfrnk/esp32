@@ -42,16 +42,23 @@ def connect_wifi():
 def start_access_point():
     ap_ssid = "ESP-Blinds"
     ap_password = "blinds_admin"
+    enable_ap = True
     try:
         with open("wifi_secrets.json", "r") as f:
             import json
             secrets = json.load(f)
             ap_ssid = secrets.get("ap_ssid", ap_ssid)
             ap_password = secrets.get("ap_password", ap_password)
+            enable_ap = secrets.get("enable_ap", True)
     except Exception:
         pass
 
     ap = network.WLAN(network.AP_IF)
+    if not enable_ap:
+        ap.active(False)
+        print("Access Point disabled by configuration.")
+        return False
+
     ap.active(True)
     ap.config(essid=ap_ssid, password=ap_password, authmode=3)
     print("Access Point broadcast started!")

@@ -14,6 +14,8 @@
             --accent-color: #38bdf8;
             --accent-glow: rgba(56, 189, 248, 0.5);
             --border-color: rgba(255, 255, 255, 0.1);
+            --temp-color: #fb923c;
+            --temp-glow: rgba(251, 146, 60, 0.5);
         }
 
         * {
@@ -77,6 +79,24 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 25px var(--accent-glow);
             border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .card.temp-card {
+            border-color: rgba(251, 146, 60, 0.2);
+        }
+
+        .card.temp-card:hover {
+            box-shadow: 0 10px 25px var(--temp-glow);
+            border-color: rgba(251, 146, 60, 0.4);
+        }
+
+        .card.temp-card .card-value {
+            color: var(--temp-color);
+        }
+
+        .temp-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
         }
 
         .card-title {
@@ -170,6 +190,12 @@
             <div class="card-value" style="font-size: 1.5rem; margin-top: 0.5rem;" id="calibration">-- / --</div>
             <div class="card-sub">Min / Max Recorded</div>
         </div>
+        <div class="card temp-card">
+            <div class="temp-icon">🌡️</div>
+            <div class="card-title">Temperature</div>
+            <div class="card-value" id="temperature">--<span style="font-size: 1.5rem"> °C</span></div>
+            <div class="card-sub" id="tempCalibrated">Estimated Room Temp</div>
+        </div>
         <div class="card sparkline-card">
             <div class="card-title">Histogram</div>
             <div class="sparkline" id="sparkline">...</div>
@@ -180,7 +206,9 @@
     <script>
         async function fetchDiagnostics() {
             try {
-                const response = await fetch('/api/diagnostics');
+                const fetchUrl = '/api/diagnostics';
+                
+                const response = await fetch(fetchUrl);
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
                 
@@ -193,6 +221,15 @@
                 document.getElementById('calibration').textContent = `${min} / ${max}`;
                 
                 document.getElementById('sparkline').textContent = data.histogram_sparkline || '...';
+
+                // Temperature
+                if (data.temperature !== null && data.temperature !== undefined) {
+                    document.getElementById('temperature').innerHTML = `${data.temperature.toFixed(1)}<span style="font-size: 1.5rem"> °C</span>`;
+                    document.getElementById('tempCalibrated').textContent = 'Estimated Room Temp';
+                } else {
+                    document.getElementById('temperature').innerHTML = '--<span style="font-size: 1.5rem"> °C</span>';
+                    document.getElementById('tempCalibrated').textContent = 'Calibrating...';
+                }
 
                 // Update status
                 document.getElementById('statusDot').style.backgroundColor = '#10b981';
