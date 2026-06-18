@@ -125,24 +125,21 @@ async def main():
     temp_sensor = TemperatureSensor()
     asyncio.create_task(temp_sensor.calibration_task())
 
-    print("Device is ready! Flashing LED...")
-    await flash()
-
     async with CameraController() as cam_controller:
         async with BlindsController() as blinds_controller:
-            last_user_percent = None
+            print("Device is ready and connected! Flashing LED...")
+            await flash()
+            
+            # Read position directly from the blind!
+            last_user_percent = await blinds_controller.get_position()
+                
+            prev_user_percent = None
+            last_light_level = None
+            current_step_size = 2.0
             while True:
                 light_level = cam_controller.measure_light()
                 if light_level is not None:
-                    print(f"Measured light level: {light_level}")
                     estimated_temp = temp_sensor.get_estimated_temperature()
-
-                    print("--- Diagnostics ---")
-                    if estimated_temp is not None:
-                        print(f"Temperature: {estimated_temp:.1f} °C")
-                    else:
-                        print("Temperature: Not Available")
-                    print("-------------------")
 
                     diagnostics_data["light_level"] = light_level
                     diagnostics_data["temperature"] = estimated_temp
@@ -156,38 +153,60 @@ async def main():
                     )  # Allowable +/- drift before moving blinds
 
                     if last_user_percent is None:
-                        # On first run, we just pick a middle ground or use the min/max logic
-                        user_percent = APP_CONFIG.light_control.initial_user_percent
+                        # On first run ever, assume initial_user_percent
+                        last_user_percent = APP_CONFIG.light_control.initial_user_percent
+                        user_percent = last_user_percent
+                        current_step_size = 2.0
                     else:
-                        if light_level > TARGET_LIGHT + DEADBAND:
-                            # Too bright -> close blinds
-                            error = light_level - TARGET_LIGHT
-                            # Proportional step: bigger error = bigger step, max 15% per iteration
-                            step = min(15.0, max(2.0, error * 0.5))
-                            user_percent = min(100.0, last_user_percent + step)
-                        elif light_level < TARGET_LIGHT - DEADBAND:
-                            # Too dark -> open blinds
-                            error = TARGET_LIGHT - light_level
-                            step = min(15.0, max(2.0, error * 0.5))
-                            user_percent = max(0.0, last_user_percent - step)
+                        if light_level > TARGET_LIGHT + DEADBAND or light_level < TARGET_LIGHT - DEADBAND:
+                            calculated_step = current_step_size
+                            
+                            if last_light_level is not None and prev_user_percent is not None:
+                                percent_moved = last_user_percent - prev_user_percent
+                                light_change = light_level - last_light_level
+                                
+                                if abs(percent_moved) >= 1.0:
+                                    effect_ratio = light_change / percent_moved
+                                    # Expected effect: closing blinds (positive percent) -> negative light change
+                                    if effect_ratio < -0.1:
+                                        error = light_level - TARGET_LIGHT
+                                        # How much do we need to move to fix the error?
+                                        required_change = -error / effect_ratio
+                                        calculated_step = abs(required_change)
+                                    else:
+                                        # Fallback if external light changed or effect too small
+                                        calculated_step = 2.0
+                                else:
+                                    calculated_step = 2.0
+                            
+                            # Clamp step size to be reasonable
+                            step = min(15.0, max(2.0, calculated_step))
+                            current_step_size = step
+
+                            if light_level > TARGET_LIGHT + DEADBAND:
+                                user_percent = min(100.0, last_user_percent + step)
+                            else:
+                                user_percent = max(0.0, last_user_percent - step)
                         else:
                             # Within target range, don't move
                             user_percent = last_user_percent
+                            current_step_size = 2.0  # Reset when target reached
 
                     diagnostics_data["user_percent"] = user_percent
                     diagnostics_data["target_light"] = TARGET_LIGHT
 
-                    if (
-                        last_user_percent is None
-                        or abs(user_percent - last_user_percent) >= 2.0
-                    ):
+                    if abs(user_percent - last_user_percent) >= 2.0:
                         await blinds_controller.set_position(user_percent)
+                        prev_user_percent = last_user_percent
                         last_user_percent = user_percent
+                        
                         np[0] = (0, 1, 0)
                         np.write()
                     else:
                         np[0] = (0, 0, 1)
                         np.write()
+                        
+                    last_light_level = light_level
                 else:
                     print("Failed to measure light level.")
                     np[0] = (1, 0, 0)
