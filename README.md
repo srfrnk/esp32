@@ -2,3 +2,5 @@
 - [Board User Manual](./CBAA0046-052_UK.pdf)
 - ![Board Spec](./20260607_175958.jpg)
 - [MicroPython](https://micropython.org/)
+- [Blinds User Manual](./smartview-quick-start-guide.pdf)
+- [Blinds Control Open Source Project](https://github.com/pink88/Tuiss2HA)
