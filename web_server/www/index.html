@@ -119,22 +119,6 @@
             margin-top: 0.25rem;
         }
 
-        .sparkline-card {
-            grid-column: 1 / -1;
-        }
-
-        .sparkline {
-            font-family: monospace;
-            font-size: 1.5rem;
-            letter-spacing: 2px;
-            color: var(--accent-color);
-            white-space: pre;
-            overflow-x: auto;
-            width: 100%;
-            text-align: center;
-            padding: 1rem 0;
-        }
-
         .status-dot {
             height: 10px;
             width: 10px;
@@ -185,21 +169,11 @@
             <div class="card-value" id="userPercent">--<span style="font-size: 1.5rem">%</span></div>
             <div class="card-sub">0% = Open, 100% = Closed</div>
         </div>
-        <div class="card">
-            <div class="card-title">Calibration</div>
-            <div class="card-value" style="font-size: 1.5rem; margin-top: 0.5rem;" id="calibration">-- / --</div>
-            <div class="card-sub">Min / Max Recorded</div>
-        </div>
         <div class="card temp-card">
             <div class="temp-icon">🌡️</div>
             <div class="card-title">Temperature</div>
             <div class="card-value" id="temperature">--<span style="font-size: 1.5rem"> °C</span></div>
             <div class="card-sub" id="tempCalibrated">Estimated Room Temp</div>
-        </div>
-        <div class="card sparkline-card">
-            <div class="card-title">Histogram</div>
-            <div class="sparkline" id="sparkline">...</div>
-            <div class="card-sub">Light Distribution Over Time</div>
         </div>
     </div>
 
@@ -216,12 +190,6 @@
                 document.getElementById('targetLight').textContent = data.target_light !== null ? data.target_light : '--';
                 document.getElementById('userPercent').innerHTML = data.user_percent !== null ? `${Math.round(data.user_percent)}<span style="font-size: 1.5rem">%</span>` : '--';
                 
-                const min = data.min_light !== null ? data.min_light : '--';
-                const max = data.max_light !== null ? data.max_light : '--';
-                document.getElementById('calibration').textContent = `${min} / ${max}`;
-                
-                document.getElementById('sparkline').textContent = data.histogram_sparkline || '...';
-
                 // Temperature
                 if (data.temperature !== null && data.temperature !== undefined) {
                     document.getElementById('temperature').innerHTML = `${data.temperature.toFixed(1)}<span style="font-size: 1.5rem"> °C</span>`;
