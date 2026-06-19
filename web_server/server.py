@@ -90,12 +90,41 @@ async def http_server_handler(reader, writer, diagnostics_data):
             pass
 
 async def start_server(diagnostics_data, host="0.0.0.0", port=80):
+    import ssl
     async def handler(reader, writer):
         await http_server_handler(reader, writer, diagnostics_data)
         
+    ssl_ctx = None
     try:
-        server = await asyncio.start_server(handler, host, port)
+        import os
+        files = os.listdir()
+        if 'cert.der' in files and 'key.der' in files:
+            print("Loading DER certificates...")
+            with open('cert.der', 'rb') as f:
+                cert = f.read()
+            with open('key.der', 'rb') as f:
+                key = f.read()
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            # In MicroPython, load_cert_chain can take binary buffers
+            ssl_ctx.load_cert_chain(cert, key)
+            port = 443  # default to HTTPS port
+        elif 'cert.pem' in files and 'key.pem' in files:
+            print("Loading PEM certificates...")
+            ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain('cert.pem', 'key.pem')
+            port = 443
+    except Exception as e:
+        print(f"Failed to configure SSL: {e}")
+        ssl_ctx = None
+
+    try:
+        if ssl_ctx:
+            server = await asyncio.start_server(handler, host, port, ssl=ssl_ctx)
+            print(f"HTTPS server started on {host}:{port}")
+        else:
+            server = await asyncio.start_server(handler, host, port)
+            print(f"HTTP server started on {host}:{port}")
         return server
     except Exception as e:
-        print(f"Failed to start HTTP server: {e}")
+        print(f"Failed to start server: {e}")
         return None

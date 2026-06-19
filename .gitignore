@@ -7,3 +7,6 @@ snapshot.jpg
 *secrets.json
 webrepl_cfg.py
 calibration.json
+*.pem
+*.der
+san.cnf
