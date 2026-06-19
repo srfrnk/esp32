@@ -126,24 +126,38 @@ async def main():
     asyncio.create_task(temp_sensor.calibration_task())
 
     async with CameraController() as cam_controller:
+        async def update_sensors():
+            while True:
+                light = cam_controller.measure_light()
+                if light is not None:
+                    diagnostics_data["light_level"] = light
+                diagnostics_data["temperature"] = temp_sensor.get_estimated_temperature()
+                await asyncio.sleep(APP_CONFIG.timing.loop_sleep_time)
+                
+        asyncio.create_task(update_sensors())
+
         async with BlindsController() as blinds_controller:
-            print("Device is ready and connected! Flashing LED...")
-            await flash()
+            if blinds_controller.target_char is not None:
+                print("Device is ready and connected! Flashing LED...")
+                await flash()
+            else:
+                print("Device started, but blind connection pending.")
             
             # Read position directly from the blind!
-            last_user_percent = await blinds_controller.get_position()
+            last_user_percent = None
+            while last_user_percent is None:
+                last_user_percent = await blinds_controller.get_position()
+                if last_user_percent is None:
+                    print("Failed to read initial position. Retrying in 5 seconds...")
+                    await asyncio.sleep(5.0)
                 
             prev_user_percent = None
             last_light_level = None
             current_step_size = 2.0
+            exploration_cycles = 0
             while True:
-                light_level = cam_controller.measure_light()
+                light_level = diagnostics_data["light_level"]
                 if light_level is not None:
-                    estimated_temp = temp_sensor.get_estimated_temperature()
-
-                    diagnostics_data["light_level"] = light_level
-                    diagnostics_data["temperature"] = estimated_temp
-
                     # TARGET_LIGHT is the desired brightness in the room.
                     # We use an incremental controller to seek this target, which is robust
                     # against ambient light changes (like room lights being turned on).
@@ -152,45 +166,56 @@ async def main():
                         APP_CONFIG.light_control.deadband
                     )  # Allowable +/- drift before moving blinds
 
-                    if last_user_percent is None:
-                        # On first run ever, assume initial_user_percent
-                        last_user_percent = APP_CONFIG.light_control.initial_user_percent
-                        user_percent = last_user_percent
-                        current_step_size = 2.0
-                    else:
-                        if light_level > TARGET_LIGHT + DEADBAND or light_level < TARGET_LIGHT - DEADBAND:
-                            calculated_step = current_step_size
+                    if light_level > TARGET_LIGHT + DEADBAND or light_level < TARGET_LIGHT - DEADBAND:
+                        exploration_cycles += 1
+                        if exploration_cycles > 5:
+                            # Step size decays with time: after a few cycles, start exploration from scratch
+                            current_step_size = 2.0
+                            exploration_cycles = 0
                             
-                            if last_light_level is not None and prev_user_percent is not None:
-                                percent_moved = last_user_percent - prev_user_percent
-                                light_change = light_level - last_light_level
-                                
-                                if abs(percent_moved) >= 1.0:
-                                    effect_ratio = light_change / percent_moved
-                                    # Expected effect: closing blinds (positive percent) -> negative light change
-                                    if effect_ratio < -0.1:
-                                        error = light_level - TARGET_LIGHT
-                                        # How much do we need to move to fix the error?
-                                        required_change = -error / effect_ratio
-                                        calculated_step = abs(required_change)
-                                    else:
-                                        # Fallback if external light changed or effect too small
-                                        calculated_step = 2.0
+                        calculated_step = current_step_size
+                        
+                        if last_light_level is not None and prev_user_percent is not None:
+                            percent_moved = last_user_percent - prev_user_percent
+                            light_change = light_level - last_light_level
+                            
+                            if abs(percent_moved) >= 1.0:
+                                effect_ratio = light_change / percent_moved
+                                # Expected effect: closing blinds (positive percent) -> negative light change
+                                if effect_ratio < -0.1:
+                                    error = light_level - TARGET_LIGHT
+                                    # How much do we need to move to fix the error?
+                                    required_change = -error / effect_ratio
+                                    target_step = abs(required_change)
                                 else:
-                                    calculated_step = 2.0
-                            
-                            # Clamp step size to be reasonable
-                            step = min(15.0, max(2.0, calculated_step))
-                            current_step_size = step
-
-                            if light_level > TARGET_LIGHT + DEADBAND:
-                                user_percent = min(100.0, last_user_percent + step)
+                                    # Fallback if effect too small: we need to explore more, so grow the target step!
+                                    target_step = min(50.0, current_step_size * 1.5)
                             else:
-                                user_percent = max(0.0, last_user_percent - step)
+                                target_step = min(50.0, current_step_size * 1.5)
+                            
+                            # Apply exponential step size change for a gradual, conservative learning rate
+                            if target_step > current_step_size:
+                                # Increase exponentially by up to 1.5x per step
+                                calculated_step = min(target_step, current_step_size * 1.5)
+                            else:
+                                # Decrease exponentially to prevent sudden drops (conservative learning rate)
+                                calculated_step = max(target_step, current_step_size * 0.8)
                         else:
-                            # Within target range, don't move
-                            user_percent = last_user_percent
-                            current_step_size = 2.0  # Reset when target reached
+                            calculated_step = 2.0
+                        
+                        # Clamp step size to be reasonable (max 50%)
+                        step = min(50.0, max(2.0, calculated_step))
+                        current_step_size = step
+
+                        if light_level > TARGET_LIGHT + DEADBAND:
+                            user_percent = min(100.0, last_user_percent + step)
+                        else:
+                            user_percent = max(0.0, last_user_percent - step)
+                    else:
+                        # Within target range, don't move
+                        user_percent = last_user_percent
+                        current_step_size = 2.0  # Reset when target reached
+                        exploration_cycles = 0
 
                     diagnostics_data["user_percent"] = user_percent
                     diagnostics_data["target_light"] = TARGET_LIGHT

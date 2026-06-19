@@ -5,7 +5,7 @@ async def http_server_handler(reader, writer, diagnostics_data):
     try:
         try:
             request_line = await asyncio.wait_for(reader.readline(), timeout=5.0)
-        except (asyncio.TimeoutError, TimeoutError):
+        except asyncio.TimeoutError:
             return
         if not request_line:
             return
@@ -26,6 +26,37 @@ async def http_server_handler(reader, writer, diagnostics_data):
             response = json.dumps(diagnostics_data)
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n")
             writer.write(response.encode())
+            await writer.drain()
+            return
+            
+        if path.startswith("/api/target_light"):
+            if "?" in path:
+                query = path.split("?")[1]
+                if "val=" in query:
+                    try:
+                        val_str = query.split("val=")[1].split("&")[0]
+                        new_target = float(val_str)
+                        
+                        from config import APP_CONFIG
+                        APP_CONFIG.light_control.target = new_target
+                        diagnostics_data["target_light"] = new_target
+                        
+                        try:
+                            with open("config.json", "r") as f:
+                                config_data = json.load(f)
+                            config_data["light_control"]["target"] = new_target
+                            with open("config.json", "w") as f:
+                                json.dump(config_data, f)
+                        except Exception as e:
+                            print(f"Failed to save config: {e}")
+                            
+                        writer.write(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}")
+                        await writer.drain()
+                        return
+                    except Exception as e:
+                        print(f"Error parsing target light: {e}")
+            
+            writer.write(b"HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n{\"error\":\"Invalid request\"}")
             await writer.drain()
             return
 
